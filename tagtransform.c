@@ -288,7 +288,8 @@ static unsigned int tagtransform_c_filter_basic_tags(enum OsmType type,
         add_z_order(tags,roads);
     }
 
-    return filter;
+    //return filter;
+    return 1;
 }
 
 

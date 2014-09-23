@@ -433,6 +433,8 @@ static int pgsql_nodes_set(osmid_t id, double lat, double lon, struct keyval *ta
     char *paramValues[4];
     char *buffer;
 
+    //printf("set Lat Lon %f %f\n", lat, lon);
+
     if( node_table->copyMode )
     {
       char *tag_buf = pgsql_store_tags(tags,1);

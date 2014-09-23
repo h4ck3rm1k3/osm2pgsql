@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
     options.append = append;
     options.slim = slim;
     options.projection = project_getprojinfo()->srs;
-    options.scale = (projection==PROJ_LATLONG)?10000000:100;
+    options.scale = (projection==PROJ_LATLONG)?10000000:10000;
     options.mid = slim ? &mid_pgsql : &mid_ram;
     options.cache = cache;
     options.style = style;

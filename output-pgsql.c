@@ -234,6 +234,10 @@ void copy_to_table(enum table_id table, const char *sql)
     unsigned int buflen = tables[table].buflen;
     char *buffer = tables[table].buffer;
 
+    if (strlen(sql) > 2 ) {
+      //printf("Exec: %s / %s\n",tables[table].name,sql);
+    }
+
     /* Return to copy mode if we dropped out */
     if( !tables[table].copyMode )
     {
@@ -490,19 +494,6 @@ static void write_hstore_columns(enum table_id table, struct keyval *tags)
 }
 
 
-/* example from: pg_dump -F p -t planet_osm gis
-COPY planet_osm (osm_id, name, place, landuse, leisure, "natural", man_made, waterway, highway, railway, amenity, tourism, learning, building, bridge, layer, way) FROM stdin;
-17959841        \N      \N      \N      \N      \N      \N      \N      bus_stop        \N      \N      \N      \N      \N      \N    -\N      0101000020E610000030CCA462B6C3D4BF92998C9B38E04940
-17401934        The Horn        \N      \N      \N      \N      \N      \N      \N      \N      pub     \N      \N      \N      \N    -\N      0101000020E6100000C12FC937140FD5BFB4D2F4FB0CE04940
-...
-
-mine - 01 01000000 48424298424242424242424256427364
-psql - 01 01000020 E6100000 30CCA462B6C3D4BF92998C9B38E04940
-       01 01000020 E6100000 48424298424242424242424256427364
-0x2000_0000 = hasSRID, following 4 bytes = srid, not supported by geos WKBWriter
-Workaround - output SRID=4326;<WKB>
-*/
-
 static int pgsql_out_node(osmid_t id, struct keyval *tags, double node_lat, double node_lon)
 {
 
@@ -512,7 +503,11 @@ static int pgsql_out_node(osmid_t id, struct keyval *tags, double node_lat, doub
     int i;
     struct keyval *tag;
 
-    if (filter) return 1;
+    printf("Lat Lon %f %f\n", node_lat, node_lon);
+
+    if (filter){
+      // return 1;
+    }
 
     if (sqllen==0) {
       sqllen=2048;
@@ -538,6 +533,7 @@ static int pgsql_out_node(osmid_t id, struct keyval *tags, double node_lat, doub
         else
             sprintf(sql, "\\N");
 
+        //printf(sql);
         copy_to_table(t_point, sql);
         copy_to_table(t_point, "\t");
     }
@@ -613,31 +609,6 @@ static void write_wkts(osmid_t id, struct keyval *tags, const char *wkt, enum ta
     copy_to_table(table, "\n");
 }
 
-/*static int tag_indicates_polygon(enum OsmType type, const char *key)
-{
-    int i;
-
-    if (!strcmp(key, "area"))
-        return 1;
-
-    for (i=0; i < exportListCount[type]; i++) {
-        if( strcmp( exportList[type][i].name, key ) == 0 )
-            return exportList[type][i].flags & FLAG_POLYGON;
-    }
-
-    return 0;
-}*/
-
-
-
-/*
-COPY planet_osm (osm_id, name, place, landuse, leisure, "natural", man_made, waterway, highway, railway, amenity, tourism, learning, bu
-ilding, bridge, layer, way) FROM stdin;
-198497  Bedford Road    \N      \N      \N      \N      \N      \N      residential     \N      \N      \N      \N      \N      \N    \N       0102000020E610000004000000452BF702B342D5BF1C60E63BF8DF49406B9C4D470037D5BF5471E316F3DF4940DFA815A6EF35D5BF9AE95E27F5DF4940B41EB
-E4C1421D5BF24D06053E7DF4940
-212696  Oswald Road     \N      \N      \N      \N      \N      \N      minor   \N      \N      \N      \N      \N      \N      \N    0102000020E610000004000000467D923B6C22D5BFA359D93EE4DF4940B3976DA7AD11D5BF84BBB376DBDF4940997FF44D9A06D5BF4223D8B8FEDF49404D158C4AEA04D
-5BF5BB39597FCDF4940
-*/
 static int pgsql_out_way(osmid_t id, struct keyval *tags, struct osmNode *nodes, int count, int exists)
 {
     int polygon = 0, roads = 0;
@@ -651,8 +622,10 @@ static int pgsql_out_way(osmid_t id, struct keyval *tags, struct osmNode *nodes,
         Options->mid->way_changed(id);
     }
 
-    if (tagtransform_filter_way_tags(tags, &polygon, &roads))
-        return 0;
+    printf("create way %d\n", id);
+    /* if (tagtransform_filter_way_tags(tags, &polygon, &roads)) */
+    /*   return 0; */
+
     /* Split long ways after around 1 degree or 100km */
     if (Options->projection == PROJ_LATLONG)
         split_at = 1;
@@ -699,6 +672,7 @@ static int pgsql_out_relation(osmid_t id, struct keyval *rel_tags, int member_co
     int * members_superseeded;
     double split_at;
 
+    printf("create relation %d\n", id);
     members_superseeded = calloc(sizeof(int), member_count);
 
     if (member_count == 0) {
@@ -706,10 +680,10 @@ static int pgsql_out_relation(osmid_t id, struct keyval *rel_tags, int member_co
         return 0;
     }
 
-    if (tagtransform_filter_rel_member_tags(rel_tags, member_count, xtags, xrole, members_superseeded, &make_boundary, &make_polygon, &roads)) {
-        free(members_superseeded);
-        return 0;
-    }
+    /* if (tagtransform_filter_rel_member_tags(rel_tags, member_count, xtags, xrole, members_superseeded, &make_boundary, &make_polygon, &roads)) { */
+    /*     free(members_superseeded); */
+    /*     return 0; */
+    /* } */
     
     /* Split long linear ways after around 1 degree or 100km (polygons not effected) */
     if (Options->projection == PROJ_LATLONG)
@@ -1178,7 +1152,8 @@ static void pgsql_out_stop()
         PGconn *sql_conn = tables[i].sql_conn;
         pgsql_exec(sql_conn, PGRES_COMMAND_OK, "BEGIN");
     }
-    /* Processing any remaing to be processed ways */
+    /* Processing any remaining to be processed ways */
+    printf("Processing any remaining to be processed ways\n");
     Options->mid->iterate_ways( pgsql_out_way );
     pgsql_out_commit();
     Options->mid->commit();
@@ -1244,15 +1219,15 @@ static int pgsql_add_way(osmid_t id, osmid_t *nds, int nd_count, struct keyval *
   int polygon = 0;
   int roads = 0;
 
-
+  printf("add way %d\n", id);
   /* Check whether the way is: (1) Exportable, (2) Maybe a polygon */
-  int filter = tagtransform_filter_way_tags(tags, &polygon, &roads);
+  int filter = 1; // tagtransform_filter_way_tags(tags, &polygon, &roads);
 
   /* If this isn't a polygon then it can not be part of a multipolygon
      Hence only polygons are "pending" */
   Options->mid->ways_set(id, nds, nd_count, tags, (!filter && polygon) ? 1 : 0);
 
-  if( !polygon && !filter )
+  //if( !polygon && !filter )
   {
     /* Get actual node data and generate output */
     struct osmNode *nodes = malloc( sizeof(struct osmNode) * nd_count );
@@ -1260,6 +1235,9 @@ static int pgsql_add_way(osmid_t id, osmid_t *nds, int nd_count, struct keyval *
     pgsql_out_way(id, tags, nodes, count, 0);
     free(nodes);
   }
+  /* else { */
+  /*   printf("skip way %d\n", id); */
+  /* } */
   return 0;
 }
 
@@ -1278,14 +1256,14 @@ static int pgsql_process_relation(osmid_t id, struct member *members, int member
   if(exists)
       pgsql_delete_relation_from_output(id);
 
-  if (tagtransform_filter_rel_tags(tags)) {
-      free(xid2);
-      free(xrole);
-      free(xcount);
-      free(xtags);
-      free(xnodes);
-      return 1;
-  }
+  /* if (tagtransform_filter_rel_tags(tags)) { */
+  /*     free(xid2); */
+  /*     free(xrole); */
+  /*     free(xcount); */
+  /*     free(xtags); */
+  /*     free(xnodes); */
+  /*     return 1; */
+  /* } */
 
   count = 0;
   for( i=0; i<member_count; i++ )

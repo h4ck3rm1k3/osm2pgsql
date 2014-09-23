@@ -133,6 +133,8 @@ struct Projection_Info const *project_getprojinfo(void)
 
 void reproject(double *lat, double *lon)
 {
+  printf("Projection input lon %f lat %f\n", *lon, *lat);    
+
     double x[1], y[1], z[1];
     
     /** Caution: This section is only correct if the source projection is lat/lon;
@@ -157,17 +159,32 @@ void reproject(double *lat, double *lon)
         *lon = (*lon) * EARTH_CIRCUMFERENCE / 360.0;
         return;
     }
+   
+    //*lon = *lon * 1000.0;
+    //*lat = *lat * 1000.0;
+
+    
+    // X 14580
+    // Y 8495
+
+
 
     x[0] = *lon * DEG_TO_RAD;
     y[0] = *lat * DEG_TO_RAD;
     z[0] = 0;
 
     /** end of "caution" section. */
-    
+   
+
+
     pj_transform(pj_source, pj_target, 1, 1, x, y, z);
+
+    // shift
     
-    *lat = y[0];
-    *lon = x[0];
+    //    *lat = y[0] + 231784.0;
+    //    *lon = x[0] + 2096205.0;       
+
+    printf("After lon %f lat %f\n", *lon, *lat);    
 }
 
 /** 
@@ -195,8 +212,11 @@ void coords_to_tile(double *tilex, double *tiley, double lon, double lat)
 
     if (Proj != PROJ_SPHERE_MERC)
     {
-        pj_transform(pj_target, pj_tile, 1, 1, x, y, z);
-        /** FIXME: pj_transform could fail if coordinates are outside +/- 85 degrees latitude */
+      printf("Projection lon %f lat %f\n", lon, lat);
+      pj_transform(pj_target, pj_tile, 1, 1, x, y, z);
+
+      printf("Projection x %f y %f\n", x, y);
+      /** FIXME: pj_transform could fail if coordinates are outside +/- 85 degrees latitude */
     }
     
     /* if ever pj_tile were allowed to be PROJ_LATLONG then results would have to
@@ -204,5 +224,7 @@ void coords_to_tile(double *tilex, double *tiley, double lon, double lat)
 
     *tilex = map_width * (0.5 + x[0] / EARTH_CIRCUMFERENCE);
     *tiley = map_width * (0.5 - y[0] / EARTH_CIRCUMFERENCE);
+
+    printf("Projection tilex %f tiley %f\n", *tilex, *tiley);
 }
 
