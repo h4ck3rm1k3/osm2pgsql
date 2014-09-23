@@ -300,6 +300,7 @@ static int split_tags(struct keyval *tags, unsigned int flags, struct keyval *na
           strcmp(item->key, "old_name") == 0 ||
           (strncmp(item->key, "old_name:", 9) == 0) || 
           strcmp(item->key, "alt_name") == 0 ||
+          (strncmp(item->key, "alt_name_", 9) == 0) || 
           (strncmp(item->key, "alt_name:", 9) == 0) || 
           strcmp(item->key, "official_name") == 0 ||
           (strncmp(item->key, "official_name:", 14) == 0) || 
@@ -363,8 +364,7 @@ static int split_tags(struct keyval *tags, unsigned int flags, struct keyval *na
                strcmp(item->key, "office") == 0 ||
                strcmp(item->key, "railway") == 0 ||
                strcmp(item->key, "shop") == 0 ||
-               strcmp(item->key, "tunnel") == 0 ||
-               strcmp(item->key, "waterway") == 0 )
+               strcmp(item->key, "tunnel") == 0 )
       {
          if (strcmp(item->value, "no"))
          {
@@ -378,6 +378,11 @@ static int split_tags(struct keyval *tags, unsigned int flags, struct keyval *na
          {
             freeItem(item);
          }
+      }
+      else if (strcmp(item->key, "waterway") == 0 &&
+               strcmp(item->value, "riverbank") != 0)
+      {
+            pushItem(places, item);
       }
       else if (strcmp(item->key, "place") == 0) 
       {
@@ -656,13 +661,13 @@ static int split_tags(struct keyval *tags, unsigned int flags, struct keyval *na
 
    if (landuse)
    {
-      if (!listHasData(places))
+      if (!listHasData(places) && listHasData(names))
       {
           pushItem(places, landuse);
       }
       else
       {
-          freeItem(item);
+          freeItem(landuse);
       }
    }
 
@@ -1235,6 +1240,7 @@ static int gazetteer_process_relation(osmid_t id, struct member *members, int me
    struct keyval * countrycode;
    int wkt_size;
    const char *type;
+   int cmp_waterway;
 
    type = getItem(tags, "type");
    if (!type) {
@@ -1242,14 +1248,16 @@ static int gazetteer_process_relation(osmid_t id, struct member *members, int me
       return 0;
    }
 
-   if (!strcmp(type, "associatedStreet") || !strcmp(type, "relatedStreet"))
+   cmp_waterway = strcmp(type, "waterway");
+
+   if (!strcmp(type, "associatedStreet"))
    {
       Options->mid->relations_set(id, members, member_count, tags);
       if (delete_old) delete_unused_classes('R', id, 0); 
       return 0;
    }
 
-   if (strcmp(type, "boundary") && strcmp(type, "multipolygon")) {
+   if (strcmp(type, "boundary") && strcmp(type, "multipolygon") && cmp_waterway) {
       if (delete_old) delete_unused_classes('R', id, 0); 
       return 0;
    }
@@ -1282,29 +1290,53 @@ static int gazetteer_process_relation(osmid_t id, struct member *members, int me
          count++;
       }
 
+      if (count == 0)
+      {
+          if (delete_old) delete_unused_classes('R', id, 0);
+          free(xcount);
+          free(xtags);
+          free(xnodes);
+          free(xid2);
+          return 0;
+      }
+
       count = Options->mid->ways_get_list(xid2, count, &xid, xtags, xnodes, xcount);
 
       xnodes[count] = NULL;
       xcount[count] = 0;
 
-      wkt_size = build_geometry(id, xnodes, xcount, 1, 1, 1000000);
-      for (i=0;i<wkt_size;i++)
+      if (cmp_waterway)
       {
-         char *wkt = get_wkt(i);
-         if (strlen(wkt) && (!strncmp(wkt, "POLYGON", strlen("POLYGON")) || !strncmp(wkt, "MULTIPOLYGON", strlen("MULTIPOLYGON"))))
-         {
-             for (place = firstItem(&places); place; place = nextItem(&places, place))
+          wkt_size = build_geometry(id, xnodes, xcount, 1, 1, 1000000);
+          for (i=0;i<wkt_size;i++)
+          {
+             char *wkt = get_wkt(i);
+             if (strlen(wkt) && (!strncmp(wkt, "POLYGON", strlen("POLYGON")) || !strncmp(wkt, "MULTIPOLYGON", strlen("MULTIPOLYGON"))))
              {
-                add_place('R', id, place->key, place->value, &names, &extratags, adminlevel, housenumber, street, addr_place, isin, postcode, countrycode, wkt);
+                 for (place = firstItem(&places); place; place = nextItem(&places, place))
+                 {
+                    add_place('R', id, place->key, place->value, &names, &extratags, adminlevel, housenumber, street, addr_place, isin, postcode, countrycode, wkt);
+                 }
              }
-         }
-         else
-         {
-             /* add_polygon_error('R', id, "boundary", "adminitrative", &names, countrycode, wkt); */
-         }
-         free(wkt);
+             else
+             {
+                 /* add_polygon_error('R', id, "boundary", "adminitrative", &names, countrycode, wkt); */
+             }
+             free(wkt);
+          }
+          clear_wkts();
+      } else {
+          /* waterways result in multilinestrings */
+          char *wkt = get_multiline_geometry(id, xnodes, xcount);
+          if (wkt && strlen(wkt))
+          {
+              for (place = firstItem(&places); place; place = nextItem(&places, place))
+              {
+                 add_place('R', id, place->key, place->value, &names, &extratags, adminlevel, housenumber, street, addr_place, isin, postcode, countrycode, wkt);
+              }
+          }
+          free(wkt);
       }
-      clear_wkts();
 
       for( i=0; i<count; i++ )
       {
